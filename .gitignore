@@ -1,0 +1,40 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Persisted runtime state (contains the administrator password hash)
+storage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# MLflow
+mlruns/
+mlflow.db
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Jeux de données (92–102 Mo chacun : au-dessus de la limite GitHub de 100 Mo)
+data/
+
+# Artefact du modèle entraîné (731 Mo)
+models/
+*.pkl
+
+# Rapport de profiling généré (39 Mo)
+notebooks/report.html
