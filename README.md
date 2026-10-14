@@ -231,15 +231,7 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 
 `staging.orders` holds the prepared dataset; the analytical model is a star schema whose fact grain is **one row per order item**.
 
-```text
-                  dim_date
-                     │
-dim_customer ─── fact_orders ─── dim_product
-                     │
-              ┌──────┴──────┐
-              ▼             ▼
-        dim_shipping   dim_location
-```
+![Star schema](screenshots/star_schema_dwh.png)
 
 | Table | Content |
 | --- | --- |
@@ -512,11 +504,6 @@ Self-service account management, split into two sections:
 
 Changing the password increments a token version embedded in every JWT, which **invalidates all previously issued tokens** across devices; the caller receives a fresh token so their own session survives.
 
-### 8. Responsive layout
-
-![Responsive](screenshots/08-responsive.png)
-
-The sidebar collapses into a two-column top navigation and every grid folds to a single column below 700 px.
 
 ---
 
