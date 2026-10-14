@@ -1,16 +1,43 @@
 # 📦 DataCo Supply Chain Intelligence
 
-An end-to-end supply chain analytics platform: from raw data to a dimensional warehouse, BI dashboards, a trained delivery-risk model, and a secured web application that serves predictions to business users.
+**An end-to-end supply chain analytics platform** — from raw data to a dimensional warehouse, BI dashboards, a trained delivery-risk model, and a secured web application that serves predictions to business users.
 
-![Overview](screenshots/02-overview.png)
+![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.9-F7931E?logo=scikitlearn&logoColor=white)
+![MLflow](https://img.shields.io/badge/MLflow-3.17-0194E2?logo=mlflow&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Star%20Schema-4169E1?logo=postgresql&logoColor=white)
+![Power BI](https://img.shields.io/badge/Power%20BI-Report-F2C811?logo=powerbi&logoColor=black)
+![Tests](https://img.shields.io/badge/tests-29%20passing-success)
 
 ---
 
-## 📌 What this project is
+## 📑 Table of contents
 
-DataCo Supply Chain Intelligence analyses 180 519 order-item records from the DataCo Smart Supply Chain dataset to answer one operational question: **which deliveries are at risk of being late, and why?**
+1. [Project overview](#-project-overview)
+2. [Architecture](#-architecture)
+3. [Technologies](#-technologies)
+4. [Project structure](#-project-structure)
+5. [Machine learning](#-machine-learning)
+6. [PostgreSQL data warehouse](#-postgresql-data-warehouse)
+7. [Power BI report](#-power-bi-report)
+8. [API reference](#-api-reference)
+9. [Security](#-security)
+10. [Getting started](#-getting-started)
+11. [Testing](#-testing)
+12. [Application walkthrough](#-application-walkthrough)
+13. [Scope and limitations](#-scope-and-limitations)
+14. [Roadmap](#-roadmap)
+15. [Author](#-author)
 
-The project covers the full chain:
+---
+
+## 🎯 Project overview
+
+DataCo Supply Chain Intelligence analyses **180 519 order-item records** from the DataCo Smart Supply Chain dataset to answer one operational question: **which deliveries are at risk of being late, and why?**
+
+The project covers the full chain, from raw CSV to a usable business interface:
 
 | Layer | What it does |
 | --- | --- |
@@ -24,85 +51,43 @@ The project covers the full chain:
 
 - Analyse sales and order performance across regions, markets, and shipping modes.
 - Identify where delivery delays concentrate.
-- Score an individual order's probability of late delivery before it ships.
+- Score an individual order's probability of late delivery **before it ships**.
 - Give business stakeholders an interface that does not require a notebook.
+
+### Key figures
+
+| | |
+| --- | --- |
+| Order-item records analysed | **180 519** |
+| On-time deliveries | **77 119** |
+| Orders flagged at risk (`late_delivery_risk = 1`) | **98 977** |
+| Model features | **16** |
+| Model ROC-AUC on held-out test set | **0.762** |
+| Automated tests | **29**, all passing |
+
+### Dataset
+
+**DataCo Smart Supply Chain for Big Data Analysis** — order-level and product-level records containing orders and customers, products and categories, sales, discounts and profitability, shipping modes and scheduled delivery times, geographic information, actual shipping duration, and a delivery risk indicator used as the ML target.
+
+> One order can contain several items: the dataset grain is the **order item**, and so is the fact table grain.
 
 ---
 
-## 🖼️ Application walkthrough
+## 🏗️ Architecture
 
-### 1. Authentication
+![Architecture](screenshots/Architecture_dataCo.jpg)
 
-![Login](screenshots/01-login.png)
+The same processed dataset feeds two independent branches:
 
-A single administrator account protects the workspace. Credentials are verified server-side against an **Argon2id** hash; a successful login returns a JWT valid for 30 minutes, stored in `sessionStorage`. Every protected route is rejected with `401` without a valid token.
+- **Data Engineering & BI** — loaded into PostgreSQL staging, modelled as a star schema, queried through SQL analytics, and surfaced in Power BI.
+- **Machine Learning & Deployment** — used to train the Random Forest, tracked in MLflow, serialised to a pipeline, and served by FastAPI to the React dashboard.
 
-### 2. Overview
+### Request flow
 
-![Overview](screenshots/02-overview.png)
-
-The landing dashboard reads live counters from `GET /tracking/summary`:
-
-| Card | Source |
-| --- | --- |
-| **Total orders** | Row count of the processed dataset — 180 519 |
-| **On-time deliveries** | `delivery_status = "On Time"` — 77 119 |
-| **Late-risk orders** | `late_delivery_risk = 1` — 98 977 |
-
-Every figure is computed from the historical dataset at request time; nothing is hardcoded in the frontend.
-
-### 3. Shipment Tracking
-
-![Shipment tracking](screenshots/03-tracking.png)
-
-Search an order by tracking ID to plot its journey on an interactive Leaflet map.
-
-- **Blue marker** — the customer's coordinates, read directly from the dataset (`latitude` / `longitude`).
-- **Red marker** — the destination. The DataCo dataset ships **no destination coordinates**, so the order city is resolved through OpenStreetMap/Nominatim and cached on disk (`storage/geocode_cache.json`). Repeated searches are instant and work offline.
-- **Dashed line** — the origin→destination link, with the map auto-fitting to the result.
-- The caption states explicitly that positions are derived from historical records, **not live GPS**, and each geocoded marker is labelled as approximate.
-
-### 4. Order details and per-order scoring
-
-![Shipment details](screenshots/04-tracking-details.png)
-
-Opening an order reveals its historical record — status, shipping mode, order and shipping dates, actual transit days — and lets you run the Random Forest on **that order's real feature values** pulled from the dataset (`POST /predictions/{tracking_id}`). Here, order #75939 to Bikaner, India scores a **64.0 %** probability of delay.
-
-### 5. Delivery risk prediction
-
-![Prediction](screenshots/05-prediction.png)
-
-A 16-field form mirroring exactly the features the pipeline was trained on. Submitting calls `POST /predict`, which validates the payload against the model schema, runs the pipeline, and returns:
-
-- the predicted class (`0` / `1`),
-- a readable **HIGH RISK / LOW RISK** verdict,
-- the model's own probability of the positive class, rendered as a progress bar,
-- a prediction ID and UTC timestamp.
-
-The probability comes from `predict_proba` on the saved pipeline — it is never fabricated or hardcoded. Out-of-range inputs (month 13, negative sales, quantity 0…) are rejected with `422` before reaching the model.
-
-### 6. Prediction history
-
-![History](screenshots/06-history.png)
-
-Every prediction is recorded with its risk badge, probability bar, and short prediction ID. The browser keeps a local view in `localStorage`, while the API persists the authoritative record — including the full input features — in `storage/predictions.json`, readable through `GET /predictions`.
-
-### 7. Administrator profile
-
-![Profile](screenshots/07-profile.png)
-
-Self-service account management, split into two sections:
-
-- **Account information** — view and change the login email (current password required).
-- **Security** — change the password: current password, new password, confirmation, with a policy enforced on both sides (10+ characters, at least one letter and one digit, must differ from the current one).
-
-Changing the password increments a token version embedded in every JWT, which **invalidates all previously issued tokens** across devices; the caller receives a fresh token so their own session survives.
-
-### 8. Responsive layout
-
-![Responsive](screenshots/08-responsive.png)
-
-The sidebar collapses into a two-column top navigation and every grid folds to a single column below 700 px.
+1. The React client authenticates against `POST /auth/login` and stores a short-lived JWT in `sessionStorage`.
+2. Every subsequent call carries that token; the API verifies the signature **and** a version claim before serving any data.
+3. Tracking endpoints read the processed CSV and enrich destinations through a disk-cached geocoder.
+4. Prediction endpoints load the serialised scikit-learn pipeline once at startup and score requests against it, persisting each result server-side.
 
 ---
 
@@ -122,36 +107,6 @@ The sidebar collapses into a two-column top navigation and every grid folds to a
 | **Frontend** | React 19, Vite 8, React Router 7, Leaflet / react-leaflet, Recharts, lucide-react |
 | **Geocoding** | OpenStreetMap Nominatim, disk-cached |
 | **Testing** | pytest, FastAPI TestClient |
-
----
-
-## 🏗️ Architecture
-
-```text
-   DataCo raw dataset (CSV)
-            │
-            ▼
-   Data cleaning + feature engineering        notebooks/01_data_preparation.ipynb
-            │
-     ┌──────┴───────────────────────┐
-     ▼                              ▼
-PostgreSQL staging            Model training            notebooks/02_machine_learning.ipynb
-     │                              │
-     ▼                              ▼
-Star schema (dwh)            MLflow tracking            src/ml/mlflow_tracking.py
-     │                              │
-     ▼                              ▼
-SQL analytics                best_delivery_risk_model.pkl
-     │                              │
-     ▼                              ▼
-Power BI report        ┌──── FastAPI service ────┐      src/api/
-                       │  /auth  /tracking       │
-                       │  /predict  /predictions │
-                       └────────────┬────────────┘
-                                    │ JWT + CORS
-                                    ▼
-                          React dashboard (Vite)        frontend/
-```
 
 ---
 
@@ -304,9 +259,11 @@ SQL analytics cover sales volumes, profitability, delivery risk and average dela
 
 Three pages, with slicers on year, region, market, and shipping mode.
 
-1. **Overview** — total sales, orders, quantity, late delivery rate, average delay, sales trend by year, sales by region, shipping mode performance.
-2. **Supply Chain Analysis** — late delivery rate by region and country, average delay by shipping mode, monthly delivery risk, orders by risk.
-3. **Product & Customer Analysis** — top 10 products, sales by category and segment, top 10 customers, profit by category.
+| Page | Content |
+| --- | --- |
+| **Overview** | Total sales, orders, quantity, late delivery rate, average delay, sales trend by year, sales by region, shipping mode performance |
+| **Supply Chain Analysis** | Late delivery rate by region and country, average delay by shipping mode, monthly delivery risk, orders by risk |
+| **Product & Customer Analysis** | Top 10 products, sales by category and segment, top 10 customers, profit by category |
 
 ---
 
@@ -402,7 +359,7 @@ Python 3.11+, Node.js 20+, and (optionally) PostgreSQL 14+ for the warehouse lay
 ### 1. Clone and create a virtual environment
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/SoulaimaMahboubaMigaou/DataCo-Supply-Chain.git
 cd DataCo-Supply-Chain
 
 python -m venv .venv
@@ -483,6 +440,83 @@ python -m pytest tests -q
 | `test_tracking.py` | Summary counters, search coordinates, detail fields, 404 handling |
 
 `GET /model-info` is asserted against the request schema, so retraining with a different feature set fails the suite instead of breaking the API at runtime.
+
+---
+
+## 🖼️ Application walkthrough
+
+### 1. Authentication
+
+![Login](screenshots/01-login.png)
+
+A single administrator account protects the workspace. Credentials are verified server-side against an **Argon2id** hash; a successful login returns a JWT valid for 30 minutes, stored in `sessionStorage`. Every protected route is rejected with `401` without a valid token.
+
+### 2. Overview
+
+![Overview](screenshots/02-overview.png)
+
+The landing dashboard reads live counters from `GET /tracking/summary`:
+
+| Card | Source |
+| --- | --- |
+| **Total orders** | Row count of the processed dataset — 180 519 |
+| **On-time deliveries** | `delivery_status = "On Time"` — 77 119 |
+| **Late-risk orders** | `late_delivery_risk = 1` — 98 977 |
+
+Every figure is computed from the historical dataset at request time; nothing is hardcoded in the frontend.
+
+### 3. Shipment Tracking
+
+![Shipment tracking](screenshots/03-tracking.png)
+
+Search an order by tracking ID to plot its journey on an interactive Leaflet map.
+
+- **Blue marker** — the customer's coordinates, read directly from the dataset (`latitude` / `longitude`).
+- **Red marker** — the destination. The DataCo dataset ships **no destination coordinates**, so the order city is resolved through OpenStreetMap/Nominatim and cached on disk (`storage/geocode_cache.json`). Repeated searches are instant and work offline.
+- **Dashed line** — the origin→destination link, with the map auto-fitting to the result.
+- The caption states explicitly that positions are derived from historical records, **not live GPS**, and each geocoded marker is labelled as approximate.
+
+### 4. Order details and per-order scoring
+
+![Shipment details](screenshots/04-tracking-details.png)
+
+Opening an order reveals its historical record — status, shipping mode, order and shipping dates, actual transit days — and lets you run the Random Forest on **that order's real feature values** pulled from the dataset (`POST /predictions/{tracking_id}`). Here, order #75939 to Bikaner, India scores a **64.0 %** probability of delay.
+
+### 5. Delivery risk prediction
+
+![Prediction](screenshots/05-prediction.png)
+
+A 16-field form mirroring exactly the features the pipeline was trained on. Submitting calls `POST /predict`, which validates the payload against the model schema, runs the pipeline, and returns:
+
+- the predicted class (`0` / `1`),
+- a readable **HIGH RISK / LOW RISK** verdict,
+- the model's own probability of the positive class, rendered as a progress bar,
+- a prediction ID and UTC timestamp.
+
+The probability comes from `predict_proba` on the saved pipeline — it is never fabricated or hardcoded. Out-of-range inputs (month 13, negative sales, quantity 0…) are rejected with `422` before reaching the model.
+
+### 6. Prediction history
+
+![History](screenshots/06-history.png)
+
+Every prediction is recorded with its risk badge, probability bar, and short prediction ID. The browser keeps a local view in `localStorage`, while the API persists the authoritative record — including the full input features — in `storage/predictions.json`, readable through `GET /predictions`.
+
+### 7. Administrator profile
+
+![Profile](screenshots/07-profile.png)
+
+Self-service account management, split into two sections:
+
+- **Account information** — view and change the login email (current password required).
+- **Security** — change the password: current password, new password, confirmation, with a policy enforced on both sides (10+ characters, at least one letter and one digit, must differ from the current one).
+
+Changing the password increments a token version embedded in every JWT, which **invalidates all previously issued tokens** across devices; the caller receives a fresh token so their own session survives.
+
+### 8. Responsive layout
+
+![Responsive](screenshots/08-responsive.png)
+
+The sidebar collapses into a two-column top navigation and every grid folds to a single column below 700 px.
 
 ---
 
